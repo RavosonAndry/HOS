@@ -54,7 +54,7 @@ const CityInput = ({
           setQuery(e.target.value);
           onChange(e.target.value);
         }}
-        placeholder=" " // Important pour que peer-focus fonctionne
+        placeholder=" "
         className={`peer w-full border rounded-sm px-3 pr-12 pt-4 pb-1 text-xs outline-none transition-all 
           ${
             darkMode
