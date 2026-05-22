@@ -17,12 +17,12 @@ const TripForm = ({ onTripGenerated, darkMode }) => {
     currentCycleUsed: 0,
   });
   const [loading, setLoading] = useState(false);
-
+  const API_BASE_URL = import.meta.env.PROD ? "" : "http://localhost:8000";
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
     try {
-      const response = await fetch("http://localhost:8000/api/generate-trip/", {
+      const response = await fetch(`${API_BASE_URL}/api/generate-trip/`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(formData),
