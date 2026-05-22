@@ -41,7 +41,7 @@ const MapDisplay = ({ route, events }) => {
   };
 
   return (
-    <div className="h-[500px] w-full rounded-2xl overflow-hidden border border-slate-700 shadow-2xl">
+    <div className="h-[500px] w-full rounded-xl overflow-hidden border border-slate-700 shadow-2xl">
       <MapContainer
         center={[39.82, -98.57]}
         zoom={4}
