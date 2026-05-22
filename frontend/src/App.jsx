@@ -59,67 +59,146 @@ function App() {
   };
 
   const downloadPDF = async () => {
-    console.log("Isolation des logs pour export PDF...");
+    console.log("Génération du PDF Premium...");
     const pdf = new jsPDF("p", "mm", "a4");
     const logs = document.querySelectorAll(".log-sheet");
 
-    if (logs.length === 0) return;
-
     for (let i = 0; i < logs.length; i++) {
       const canvas = await html2canvas(logs[i], {
-        scale: 2,
+        scale: 3, // Augmenté pour une netteté parfaite des lignes
         useCORS: true,
-        backgroundColor: "#0f172a",
+        backgroundColor: "#020617", // Slate 950
         onclone: (clonedDoc) => {
-          // 1. SUPPRESSION RADICALE : On retire toutes les balises <style> et <link>
-          // qui contiennent le CSS de Tailwind 4 pour éviter les erreurs oklab/oklch
+          // 1. Nettoyage total du CSS moderne
           const styles = clonedDoc.querySelectorAll(
             "style, link[rel='stylesheet']",
           );
           styles.forEach((s) => s.remove());
 
-          // 2. INJECTION D'UN CSS "SAFE" : On recrée un style minimaliste en HEX pur
+          // 2. Injection du design Premium "Safe"
           const safeStyle = clonedDoc.createElement("style");
           safeStyle.innerHTML = `
           .log-sheet { 
-            background-color: #0f172a !important; 
+            background-color: #020617 !important; 
+            color: #f8fafc !important; 
+            font-family: 'Helvetica', 'Arial', sans-serif !important;
+            padding: 40px !important;
+            min-height: 1000px;
+          }
+          
+          /* Header du Log */
+          .log-sheet h4 { 
             color: #ffffff !important; 
-            font-family: Arial, sans-serif !important;
-            padding: 20px !important;
+            font-size: 22px !important; 
+            font-weight: 900 !important;
+            text-transform: uppercase !important;
+            margin: 0 0 5px 0 !important;
+            letter-spacing: -0.5px !important;
           }
-          .log-sheet * { 
-            border-color: #334155 !important; 
-            color: inherit !important;
-            box-shadow: none !important;
-            background-image: none !important;
+          
+          .log-sheet p { 
+            color: #64748b !important; 
+            font-size: 10px !important; 
+            text-transform: uppercase !important;
+            font-weight: 700 !important;
+            margin-bottom: 30px !important;
           }
-          h4 { color: #60a5fa !important; font-size: 16px !important; margin-bottom: 10px !important; }
-          span { color: #94a3b8 !important; font-size: 10px !important; }
-          .grid { display: flex !important; gap: 10px !important; }
-          .border-b { border-bottom: 1px solid #334155 !important; }
+
+          /* Grille de Metadonnées (Truck, Carrier, Office) */
+          .meta-grid { 
+            display: table !important; 
+            width: 100% !important; 
+            border-spacing: 10px 0 !important;
+            margin-bottom: 40px !important;
+          }
+          
+          .meta-item { 
+            display: table-cell !important;
+            background: #0f172a !important;
+            border: 1px solid #1e293b !important;
+            padding: 12px !important;
+            border-radius: 4px !important;
+          }
+
+          .meta-label { 
+            display: block !important;
+            color: #3b82f6 !important; /* Blue 500 */
+            font-size: 8px !important;
+            font-weight: 800 !important;
+            margin-bottom: 4px !important;
+            text-transform: uppercase !important;
+          }
+
+          .meta-value { 
+            display: block !important;
+            color: #ffffff !important;
+            font-size: 12px !important;
+            font-weight: 600 !important;
+          }
+
+          /* Le Canvas (Graphique) */
+          canvas { 
+            border: 2px solid #1e293b !important;
+            border-radius: 8px !important;
+            margin: 20px 0 !important;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.5) !important;
+          }
+
+          /* Footer Heures/Miles */
+          .footer-info {
+            margin-top: 30px !important;
+            text-align: right !important;
+            border-top: 1px solid #1e293b !important;
+            padding-top: 15px !important;
+          }
+          
+          .footer-val {
+            color: #ffffff !important;
+            font-size: 14px !important;
+            font-weight: 800 !important;
+            margin-left: 20px !important;
+          }
         `;
           clonedDoc.head.appendChild(safeStyle);
 
-          // 3. NETTOYAGE DES ATTRIBUTS : On enlève les classes qui pourraient porter des styles inline oklch
-          const allElements = clonedDoc.getElementsByTagName("*");
-          for (let el of allElements) {
-            el.removeAttribute("class"); // On enlève les classes Tailwind qui font planter
-            // On garde juste les IDs ou on remet la classe log-sheet pour notre CSS safe
-            if (el.id === logs[i].id || i === i) {
-              /* optionnel */
-            }
+          // 3. Application manuelle des structures (car on a enlevé les classes Tailwind)
+          // On cible les éléments par leur contenu ou position pour leur donner les classes "Safe"
+          const logContainer = clonedDoc.querySelector(".log-sheet");
+
+          // On recrée la grille de meta pour le PDF
+          const metaSection = logContainer.querySelector(".grid-cols-3");
+          if (metaSection) {
+            metaSection.className = "meta-grid";
+            const items = metaSection.querySelectorAll("div");
+            items.forEach((div) => {
+              div.className = "meta-item";
+              const spans = div.querySelectorAll("span");
+              if (spans[0]) spans[0].className = "meta-label";
+              if (spans[1]) spans[1].className = "meta-value";
+            });
           }
         },
       });
 
       const imgData = canvas.toDataURL("image/png");
       if (i > 0) pdf.addPage();
-      // Ajustement pour que ça tienne bien sur une page A4
-      pdf.addImage(imgData, "PNG", 5, 10, 200, 110);
+
+      // On centre l'image sur la page A4
+      const imgWidth = 190;
+      const imgHeight = (canvas.height * imgWidth) / canvas.width;
+      pdf.addImage(imgData, "PNG", 10, 20, imgWidth, imgHeight);
+
+      // Ajout d'un petit filigrane de sécurité (Optionnel, très pro)
+      pdf.setFontSize(8);
+      pdf.setTextColor(150);
+      pdf.text(
+        "Certified Electronic Logging Device (ELD) Data - Spotter Compliance",
+        10,
+        285,
+      );
     }
 
-    pdf.save("Spotter-ELD-Final-Report.pdf");
-    console.log("Export réussi !");
+    pdf.save(`HOS_Report_${new Date().toISOString().slice(0, 10)}.pdf`);
   };
   return (
     <div

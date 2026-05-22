@@ -194,7 +194,7 @@ const LogGrid = ({ dayEvents, date, darkMode }) => {
       </div>
 
       {/* Footer du log avec total heures (Optionnel mais Premium) */}
-      <div className="mt-2 flex justify-end gap-6 text-[9px] font-bold uppercase opacity-60">
+      <div className="footer-info mt-2 flex justify-end gap-6 text-[9px] font-bold uppercase opacity-60">
         <div className={darkMode ? "text-slate-400" : "text-slate-600"}>
           Total Distance:{" "}
           <span className={darkMode ? "text-white" : "text-slate-950"}>
