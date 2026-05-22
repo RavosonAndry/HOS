@@ -1,15 +1,24 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import TripForm from "./components/TripForm";
 import MapDisplay from "./components/MapDisplay";
 import LogGrid from "./components/LogGrid";
 import "leaflet/dist/leaflet.css";
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
-import { Download } from "lucide-react";
+import { Download, Moon, Sun } from "lucide-react";
 
 function App() {
   const [data, setData] = useState(null);
+  const [darkMode, setDarkMode] = useState(true);
 
+  // Gestion du thème
+  useEffect(() => {
+    if (darkMode) {
+      document.documentElement.classList.add("dark");
+    } else {
+      document.documentElement.classList.remove("dark");
+    }
+  }, [darkMode]);
   // Découpage des logs par jour (24h)
   const getLogsByDay = (events) => {
     const dayLogs = {};
@@ -50,123 +59,153 @@ function App() {
   };
 
   const downloadPDF = async () => {
-    console.log("Démarrage du PDF...");
+    console.log("Isolation des logs pour export PDF...");
     const pdf = new jsPDF("p", "mm", "a4");
     const logs = document.querySelectorAll(".log-sheet");
 
-    if (logs.length === 0) {
-      alert("Aucun log trouvé.");
-      return;
-    }
+    if (logs.length === 0) return;
 
     for (let i = 0; i < logs.length; i++) {
       const canvas = await html2canvas(logs[i], {
         scale: 2,
         useCORS: true,
         backgroundColor: "#0f172a",
-        // --- LOGIQUE DE NETTOYAGE TAILWIND 4 ---
         onclone: (clonedDoc) => {
-          // On cherche tous les éléments dans la copie du document
+          // 1. SUPPRESSION RADICALE : On retire toutes les balises <style> et <link>
+          // qui contiennent le CSS de Tailwind 4 pour éviter les erreurs oklab/oklch
+          const styles = clonedDoc.querySelectorAll(
+            "style, link[rel='stylesheet']",
+          );
+          styles.forEach((s) => s.remove());
+
+          // 2. INJECTION D'UN CSS "SAFE" : On recrée un style minimaliste en HEX pur
+          const safeStyle = clonedDoc.createElement("style");
+          safeStyle.innerHTML = `
+          .log-sheet { 
+            background-color: #0f172a !important; 
+            color: #ffffff !important; 
+            font-family: Arial, sans-serif !important;
+            padding: 20px !important;
+          }
+          .log-sheet * { 
+            border-color: #334155 !important; 
+            color: inherit !important;
+            box-shadow: none !important;
+            background-image: none !important;
+          }
+          h4 { color: #60a5fa !important; font-size: 16px !important; margin-bottom: 10px !important; }
+          span { color: #94a3b8 !important; font-size: 10px !important; }
+          .grid { display: flex !important; gap: 10px !important; }
+          .border-b { border-bottom: 1px solid #334155 !important; }
+        `;
+          clonedDoc.head.appendChild(safeStyle);
+
+          // 3. NETTOYAGE DES ATTRIBUTS : On enlève les classes qui pourraient porter des styles inline oklch
           const allElements = clonedDoc.getElementsByTagName("*");
           for (let el of allElements) {
-            const computedStyle = window.getComputedStyle(el);
-            // Si une couleur utilise oklch, on la force en transparent ou une couleur HEX
-            if (computedStyle.color.includes("oklch"))
-              el.style.color = "#f8fafc";
-            if (computedStyle.backgroundColor.includes("oklch"))
-              el.style.backgroundColor = "#0f172a";
-            if (computedStyle.borderColor.includes("oklch"))
-              el.style.borderColor = "#1e293b";
-
-            // On supprime les ombres Tailwind 4 qui utilisent souvent oklch
-            if (computedStyle.boxShadow.includes("oklch"))
-              el.style.boxShadow = "none";
+            el.removeAttribute("class"); // On enlève les classes Tailwind qui font planter
+            // On garde juste les IDs ou on remet la classe log-sheet pour notre CSS safe
+            if (el.id === logs[i].id || i === i) {
+              /* optionnel */
+            }
           }
         },
       });
 
       const imgData = canvas.toDataURL("image/png");
       if (i > 0) pdf.addPage();
+      // Ajustement pour que ça tienne bien sur une page A4
       pdf.addImage(imgData, "PNG", 5, 10, 200, 110);
     }
 
-    pdf.save("ELD-Log-Report.pdf");
+    pdf.save("Spotter-ELD-Final-Report.pdf");
+    console.log("Export réussi !");
   };
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-50 p-4 md:p-8 font-sans">
-      <header className="max-w-6xl mx-auto mb-12 flex flex-col md:flex-row justify-between items-center gap-4">
-        <div>
-          <h1 className="text-4xl font-black bg-gradient-to-r from-blue-400 to-emerald-400 bg-clip-text text-transparent italic">
-            SPOTTER ELD PRO
-          </h1>
-          <p className="text-slate-400">HOS Compliant Route & Log Generator</p>
-        </div>
-        <div className="flex gap-4 text-sm font-mono">
-          <span className="bg-slate-900 border border-slate-800 px-3 py-1 rounded-full text-blue-400">
-            Django 5.0
-          </span>
-          <span className="bg-slate-900 border border-slate-800 px-3 py-1 rounded-full text-emerald-400">
-            Tailwind 4
-          </span>
+    <div
+      className={`min-h-screen transition-colors duration-300 ${darkMode ? "bg-slate-950 text-slate-100" : "bg-slate-50 text-slate-900"} font-sans antialiased text-[11px]`}
+    >
+      {/* Header FIXE */}
+      <header
+        className={`sticky top-0 z-[1000] border-b backdrop-blur-md ${darkMode ? "bg-slate-950/80 border-slate-800" : "bg-white/80 border-slate-200"}`}
+      >
+        <div className="max-w-7xl mx-auto px-4 py-3 flex justify-between items-center">
+          <div>
+            <h1
+              className={`text-lg font-black italic uppercase tracking-tighter ${darkMode ? "text-white" : "text-slate-900"}`}
+            >
+              SPOTTER <span className="text-blue-500">ELD</span>
+            </h1>
+            <p
+              className={`text-[9px] uppercase tracking-[0.3em] ${darkMode ? "text-slate-500" : "text-slate-400"}`}
+            >
+              Log Generator Pro
+            </p>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setDarkMode(!darkMode)}
+              className={`p-2 rounded-sm transition-colors ${darkMode ? "hover:bg-slate-800 text-yellow-400" : "hover:bg-slate-100 text-slate-600"}`}
+            >
+              {darkMode ? <Sun size={16} /> : <Moon size={16} />}
+            </button>
+            {data && (
+              <button
+                onClick={downloadPDF}
+                className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-sm font-bold flex items-center gap-2 text-[10px] uppercase tracking-wider transition-transform active:scale-95"
+              >
+                <Download size={14} />{" "}
+                <span className="hidden sm:inline">Export PDF</span>
+              </button>
+            )}
+          </div>
         </div>
       </header>
 
-      <main className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-8">
-        {/* Colonne Gauche : Formulaire */}
-        <div className="lg:col-span-4">
-          <TripForm onTripGenerated={setData} />
-        </div>
+      <main className="max-w-7xl mx-auto px-4 py-6 space-y-6">
+        <section
+          className={`p-4 rounded-sm border shadow-sm ${darkMode ? "bg-slate-900 border-slate-800" : "bg-white border-slate-200"}`}
+        >
+          <TripForm onTripGenerated={setData} darkMode={darkMode} />
+        </section>
 
-        {/* Colonne Droite : Résultats */}
-        <div className="lg:col-span-8 space-y-8">
-          {!data ? (
-            <div className="h-full flex flex-col items-center justify-center border-2 border-dashed border-slate-800 rounded-3xl p-12 text-slate-600">
-              <p className="text-xl">En attente de données de trajet...</p>
-              <p className="text-sm italic">
-                Entrez un trajet à gauche pour générer les logs.
-              </p>
-            </div>
-          ) : (
-            <>
-              {/* Bouton de téléchargement */}
-              <div className="flex justify-end mb-4">
-                <button
-                  onClick={downloadPDF}
-                  className="bg-emerald-600 hover:bg-emerald-700 px-4 py-2 rounded-lg font-bold flex items-center gap-2"
+        {data && (
+          <div className="space-y-8">
+            <section
+              className={`rounded-sm overflow-hidden border shadow-xl ${darkMode ? "border-slate-800" : "border-slate-200"}`}
+            >
+              <MapDisplay route={data.route} events={data.events} />
+            </section>
+
+            <section className="space-y-4 pb-12">
+              <div className="flex items-center gap-2">
+                <div className="h-3 w-[3px] bg-blue-500"></div>
+                <h2
+                  className={`text-[11px] font-bold uppercase tracking-widest ${darkMode ? "text-white" : "text-slate-900"}`}
                 >
-                  Télécharger les Logs (PDF)
-                </button>
+                  Daily Activity Logs
+                </h2>
               </div>
-              <section>
-                <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
-                  <span className="w-2 h-6 bg-blue-500 rounded-full"></span>{" "}
-                  Trajet Planifié
-                </h3>
-                <MapDisplay route={data.route} events={data.events} />
-              </section>
-
-              <section className="space-y-6">
-                <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
-                  <span className="w-2 h-6 bg-emerald-500 rounded-full"></span>{" "}
-                  Journaux de bord (ELD Logs)
-                </h3>
-                <div className="mt-8 space-y-12">
-                  {Object.entries(getLogsByDay(data.events)).map(
-                    ([date, dayEvents]) => (
-                      /* C'EST CETTE CLASSE CI-DESSOUS QUI EST INDISPENSABLE */
-                      <div
-                        key={date}
-                        className="log-sheet bg-slate-900 p-4 rounded-2xl border border-slate-800"
-                      >
-                        <LogGrid date={date} dayEvents={dayEvents} />
-                      </div>
-                    ),
-                  )}
-                </div>
-              </section>
-            </>
-          )}
-        </div>
+              <div className="grid grid-cols-1 gap-8">
+                {Object.entries(getLogsByDay(data.events)).map(
+                  ([date, dayEvents]) => (
+                    <div
+                      key={date}
+                      className={`log-sheet p-4 rounded-sm border shadow-sm ${darkMode ? "bg-slate-900 border-slate-800" : "bg-white border-slate-200"}`}
+                    >
+                      <LogGrid
+                        date={date}
+                        dayEvents={dayEvents}
+                        darkMode={darkMode}
+                      />
+                    </div>
+                  ),
+                )}
+              </div>
+            </section>
+          </div>
+        )}
       </main>
     </div>
   );

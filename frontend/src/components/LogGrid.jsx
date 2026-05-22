@@ -1,25 +1,50 @@
 import React, { useEffect, useRef } from "react";
 
-const LogGrid = ({ dayEvents, date }) => {
+const LogGrid = ({ dayEvents, date, darkMode }) => {
   const canvasRef = useRef(null);
 
   useEffect(() => {
     const canvas = canvasRef.current;
     const ctx = canvas.getContext("2d");
-    const width = canvas.width;
-    const height = canvas.height;
 
-    // Config de la grille
+    // On utilise un ratio pour la netteté sur écrans Retina
+    const width = 800;
+    const height = 200;
+    canvas.width = width;
+    canvas.height = height;
+
+    // Couleurs selon le thème
+    const gridColor = darkMode ? "#334155" : "#cbd5e1"; // Plus sombre en light pour être net
+    const textColor = darkMode ? "#94a3b8" : "#475569";
+    const logColor = "#2563eb"; // Bleu ELD pro
+
+    const bgColor = darkMode ? "#0f172a" : "#ffffff"; // HEX PUR
+    const subGridColor = darkMode ? "#1e293b" : "#f1f5f9"; // Pour le zebra striping
+
     const margin = { top: 40, right: 30, bottom: 20, left: 100 };
     const gridWidth = width - margin.left - margin.right;
-    const rowHeight = 40;
+    const rowHeight = 35;
     const statusY = { OFF_DUTY: 0, SLEEPER: 1, DRIVING: 2, ON_DUTY: 3 };
 
-    // Nettoyage
-    ctx.clearRect(0, 0, width, height);
+    // 1. Fond du Canvas (Effet Papier en Light Mode)
+    ctx.fillStyle = bgColor;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    // 1. Dessiner le cadre et les lignes de statut
-    ctx.strokeStyle = "#cbd5e1";
+    // 2. Dessiner le "Zebra Striping" (alternance de couleur de fond pour les lignes)
+    Object.keys(statusY).forEach((status, i) => {
+      if (i % 2 === 0) {
+        ctx.fillStyle = darkMode ? "#161e2e" : "#f8fafc";
+        ctx.fillRect(
+          margin.left,
+          margin.top + i * rowHeight,
+          gridWidth,
+          rowHeight,
+        );
+      }
+    });
+
+    // 3. Dessiner la grille horizontale
+    ctx.strokeStyle = gridColor;
     ctx.lineWidth = 1;
     for (let i = 0; i <= 4; i++) {
       const y = margin.top + i * rowHeight;
@@ -29,102 +54,160 @@ const LogGrid = ({ dayEvents, date }) => {
       ctx.stroke();
     }
 
-    // 2. Dessiner les labels de statut
-    ctx.fillStyle = "#64748b";
-    ctx.font = "bold 12px sans-serif";
+    // 4. Labels Statuts (Texte à gauche)
+    ctx.fillStyle = darkMode ? "#f8fafc" : "#0f172a"; // Très contrasté
+    ctx.font = "bold 9px 'Inter', sans-serif";
     Object.keys(statusY).forEach((status, i) => {
       ctx.fillText(
         status.replace("_", " "),
         10,
-        margin.top + i * rowHeight + 25,
+        margin.top + i * rowHeight + 20,
       );
     });
 
-    // 3. Dessiner les heures (0 à 24)
+    // 5. Graduations des heures et demi-heures
     for (let h = 0; h <= 24; h++) {
       const x = margin.left + (h * gridWidth) / 24;
+
+      // Ligne verticale principale
+      ctx.strokeStyle = gridColor;
+      ctx.lineWidth = 0.5;
       ctx.beginPath();
       ctx.moveTo(x, margin.top);
       ctx.lineTo(x, margin.top + 4 * rowHeight);
       ctx.stroke();
+
+      // Heures (Texte)
+      ctx.fillStyle = textColor;
       if (h % 2 === 0) {
-        ctx.fillText(h === 12 ? "M" : h, x - 5, margin.top - 10);
+        ctx.font = "600 9px 'Inter', sans-serif";
+        ctx.fillText(h === 12 ? "M" : h, x - 4, margin.top - 12);
+      }
+
+      // Petite graduation pour la demi-heure (30 min)
+      if (h < 24) {
+        const xHalf = x + gridWidth / 24 / 2;
+        ctx.strokeStyle = darkMode ? "#1e293b" : "#e2e8f0";
+        ctx.beginPath();
+        ctx.moveTo(xHalf, margin.top);
+        ctx.lineTo(xHalf, margin.top + 4 * rowHeight);
+        ctx.stroke();
       }
     }
 
-    // 4. Tracer la ligne de log (en rouge épais)
+    // 6. Tracer la ligne de log (le trajet)
     ctx.beginPath();
-    ctx.strokeStyle = "#ef4444";
+    ctx.strokeStyle = logColor;
     ctx.lineWidth = 3;
     ctx.lineJoin = "round";
+    ctx.lineCap = "round";
 
     let lastY = null;
-
     dayEvents.forEach((event, index) => {
-      // On utilise les dates découpées par le helper
       const start = event.drawStart;
       const end = event.drawEnd;
 
-      // Calcul du pourcentage de la journée (0 à 1)
-      // On calcule les minutes écoulées depuis MINUIT de ce jour précis
-      const getDayMinutes = (date) =>
-        date.getHours() * 60 + date.getMinutes() + date.getSeconds() / 60;
-
-      const startMin = getDayMinutes(start);
-      const endMin = getDayMinutes(end);
-
-      const xStart = margin.left + (startMin / 1440) * gridWidth;
-      const xEnd = margin.left + (endMin / 1440) * gridWidth;
+      const getDayMinutes = (d) => d.getHours() * 60 + d.getMinutes();
+      const xStart = margin.left + (getDayMinutes(start) / 1440) * gridWidth;
+      const xEnd = margin.left + (getDayMinutes(end) / 1440) * gridWidth;
       const y = margin.top + statusY[event.status] * rowHeight + rowHeight / 2;
 
-      // Si c'est le premier point du jour, on place le pinceau
-      if (index === 0) {
-        ctx.moveTo(xStart, y);
-      }
-
-      // Si le statut a changé par rapport à l'événement précédent, ligne verticale
+      if (index === 0) ctx.moveTo(xStart, y);
       if (lastY !== null && lastY !== y) {
-        ctx.lineTo(xStart, lastY);
+        ctx.lineTo(xStart, lastY); // Ligne verticale de changement de statut
         ctx.lineTo(xStart, y);
       }
-
       ctx.lineTo(xEnd, y);
       lastY = y;
     });
-
     ctx.stroke();
-  }, [dayEvents]);
+
+    // Petit cercle à la fin pour le style premium
+    if (dayEvents.length > 0) {
+      const lastEvent = dayEvents[dayEvents.length - 1];
+      const endMin =
+        lastEvent.drawEnd.getHours() * 60 + lastEvent.drawEnd.getMinutes();
+      const xEnd = margin.left + (endMin / 1440) * gridWidth;
+      const yEnd =
+        margin.top + statusY[lastEvent.status] * rowHeight + rowHeight / 2;
+      ctx.fillStyle = logColor;
+      ctx.beginPath();
+      ctx.arc(xEnd, yEnd, 3, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }, [dayEvents, darkMode]);
 
   return (
-    <div className="bg-slate-800 p-6 rounded-xl border border-slate-700 my-4 shadow-inner">
-      <div className="flex justify-between mb-4">
-        <h4 className="text-blue-400 font-bold uppercase tracking-wider">
-          Daily Log: {date}
-        </h4>
-        <span className="text-slate-500 text-sm">
-          Property-Carrying Driver (70hr/8day)
-        </span>
+    <div className="w-full">
+      {/* Header du Log - Info Conducteur */}
+      <div className="flex flex-col md:flex-row justify-between mb-6 gap-4 border-b border-slate-100 dark:border-slate-800 pb-4">
+        <div>
+          <div className="flex items-center gap-2 mb-1">
+            <div className="w-2 h-2 rounded-full bg-blue-600 animate-pulse"></div>
+            <h4
+              className={`font-black uppercase tracking-widest text-[11px] ${darkMode ? "text-white" : "text-slate-950"}`}
+            >
+              Daily Log : {date}
+            </h4>
+          </div>
+          <p
+            className={`text-[9px] font-bold uppercase tracking-tighter ${darkMode ? "text-slate-500" : "text-slate-400"}`}
+          >
+            Federal Motor Carrier Safety Regulations (HOS)
+          </p>
+        </div>
+
+        <div className="grid grid-cols-3 gap-2 text-[8px] uppercase font-bold">
+          {[
+            { label: "Truck ID", val: "T-2024-X" },
+            { label: "Carrier", val: "Spotter Log" },
+            { label: "Office", val: "Wash, DC" },
+          ].map((item, idx) => (
+            <div
+              key={idx}
+              className={`p-2 border rounded-sm transition-colors ${darkMode ? "border-slate-800 bg-slate-900/50" : "border-slate-200 bg-slate-50"}`}
+            >
+              <span
+                className={`block opacity-60 mb-1 ${darkMode ? "text-slate-400" : "text-slate-500"}`}
+              >
+                {item.label}
+              </span>
+              <span className={darkMode ? "text-white" : "text-slate-950"}>
+                {item.val}
+              </span>
+            </div>
+          ))}
+        </div>
       </div>
-      <div className="grid grid-cols-3 gap-4 mb-4 text-[10px] uppercase font-mono text-slate-400">
-        <div className="border-b border-slate-700">
-          <span className="block text-[8px]">Carrier:</span>
-          <span className="text-white">Spotter Logistics</span>
-        </div>
-        <div className="border-b border-slate-700">
-          <span className="block text-[8px]">Main Office:</span>
-          <span className="text-white">Washington, D.C.</span>
-        </div>
-        <div className="border-b border-slate-700">
-          <span className="block text-[8px]">Truck ID:</span>
-          <span className="text-white">T-2024-X</span>
+
+      {/* Le Graphique (Scrollable sur Mobile) */}
+      <div className="overflow-x-auto pb-4 cursor-default no-scrollbar">
+        <div
+          className={`inline-block p-1 rounded-sm ${!darkMode ? "bg-slate-200" : "bg-slate-800"}`}
+        >
+          <canvas
+            ref={canvasRef}
+            className="block h-auto min-w-[750px] rounded-sm shadow-inner"
+            style={{ width: "800px", height: "200px" }}
+          />
         </div>
       </div>
-      <canvas
-        ref={canvasRef}
-        width="850"
-        height="220"
-        className="w-full h-auto"
-      />
+
+      {/* Footer du log avec total heures (Optionnel mais Premium) */}
+      <div className="mt-2 flex justify-end gap-6 text-[9px] font-bold uppercase opacity-60">
+        <div className={darkMode ? "text-slate-400" : "text-slate-600"}>
+          Total Distance:{" "}
+          <span className={darkMode ? "text-white" : "text-slate-950"}>
+            --- mi
+          </span>
+        </div>
+        <div className={darkMode ? "text-slate-400" : "text-slate-600"}>
+          Total Hours:{" "}
+          <span className={darkMode ? "text-white" : "text-slate-950"}>
+            24.0h
+          </span>
+        </div>
+      </div>
     </div>
   );
 };
